@@ -41,6 +41,8 @@ public class OutBoundController {
 
             IOUtils.closeQuietly(inputStream);
             IOUtils.closeQuietly(outStream);
+
+            Thread.sleep(5000);
         } catch (IOException ex) {
             throw ex;
         }
