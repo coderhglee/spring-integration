@@ -15,7 +15,6 @@ public class CustomRecoveryCallback implements RecoveryCallback {
 
     @Autowired
     private FileService fileService;
-    String recoveryFilePath = "C:\\Users\\KLCOM000\\repository\\spring-integration\\spring-intergration-batch\\fail\\";
 
     @Override
     public Object recover(RetryContext retryContext) throws Exception {

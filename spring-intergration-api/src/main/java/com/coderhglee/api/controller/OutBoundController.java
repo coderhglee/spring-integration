@@ -2,6 +2,7 @@ package com.coderhglee.api.controller;
 
 import lombok.extern.log4j.Log4j2;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,9 @@ import java.io.*;
 @RestController
 public class OutBoundController {
 
+    @Value("${working.path}")
+    private String WORKING_PATH;
+
     @RequestMapping("/hello/{file_name}")
     public String callOutBound(@PathVariable("file_name") String fileName, HttpServletRequest request) throws Exception{
 
@@ -24,7 +28,7 @@ public class OutBoundController {
         try {
             InputStream inputStream = request.getInputStream();
 
-            File targetFile = new File("C:\\Users\\KLCOM000\\repository\\spring-integration\\spring-intergration-api\\src\\main\\resources\\out\\"+fileName);
+            File targetFile = new File(WORKING_PATH+"/out/"+fileName);
             OutputStream outStream = new FileOutputStream(targetFile);
 
             if (inputStream != null) {

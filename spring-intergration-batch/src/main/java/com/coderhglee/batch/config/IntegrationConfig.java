@@ -4,6 +4,7 @@ import com.coderhglee.batch.interceptor.ExecutorInterceptor;
 import com.coderhglee.batch.interceptor.PollersInterceptor;
 import org.aopalliance.aop.Advice;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -39,8 +40,11 @@ import java.util.concurrent.Executors;
 @Configuration
 @EnableIntegration
 public class IntegrationConfig {
-    public String INPUT_DIR = "C:\\Users\\KLCOM000\\repository\\spring-integration\\spring-intergration-batch\\in";
-    public String FILE_PATTERN = "*.*";
+
+    @Value("${working.path}")
+    private String WORKING_PATH;
+
+    private String FILE_PATTERN = "*.*";
 
     @Autowired
     private ApplicationContext appContext;
@@ -52,39 +56,63 @@ public class IntegrationConfig {
         return directChannel;
     }
 
-//    @Bean
-//    public MetadataStore metadataStore() {
-//        PropertiesPersistingMetadataStore metadataStore = new PropertiesPersistingMetadataStore();
-//        metadataStore.setBaseDirectory("C:\\Users\\KLCOM000\\repository\\spring-integration\\spring-intergration-batch\\tmp");
-//        return metadataStore;
-//    }
-
+    /**
+     * SimpleMetadataStore Bean
+     * 별도의 파일로 저장하지않고 메모리에 MessageSource 파일 내용을 저장한다.
+     * @return
+     */
     @Bean
     public SimpleMetadataStore simpleMetadataStore() {
         return new SimpleMetadataStore();
     }
 
+    /**
+     * PropertiesPersistingMetadataStore Bean
+     * MessageSource 에서 읽은 파일을 .properties 파일에 목록을 저장한다.
+     * @return
+     */
     @Bean
     public PropertiesPersistingMetadataStore getMetadataStore() {
         PropertiesPersistingMetadataStore metadataStore = new PropertiesPersistingMetadataStore();
-        metadataStore.setBaseDirectory("C:\\Users\\KLCOM000\\repository\\spring-integration\\spring-intergration-batch\\tmp");
+        metadataStore.setBaseDirectory(WORKING_PATH+"/tmp");
         metadataStore.afterPropertiesSet();
 //        Logger.info(metadataStore.getClass().getName(), " metadataStore ");
         return metadataStore;
     }
 
+    /**
+     * 멀티 스레드 환경을 만들기 위한 Bean
+     * Filter를 설정하지않으면 다른 Thread에서 같은 File을 참고하게 된다. 이것을 방지하기 위해 Filter를 설정한다.
+     * FileSystemPersistentAcceptOnceFileListFilter
+     *
+     * AcceptOnceFileListFilter 를 정의할수도있지만 이 클래스는 파일이름에 한정하여 Filtering 한다.
+     *
+     * @return
+     */
+    @Bean
+    public FileSystemPersistentAcceptOnceFileListFilter acceptOnceFileListFilter(){
+        FileSystemPersistentAcceptOnceFileListFilter fileListFilter = new FileSystemPersistentAcceptOnceFileListFilter(getMetadataStore(),"fileReadingMessageSource");
+        // Determine whether the metadataStore should be flushed on each update
+        fileListFilter.setFlushOnUpdate(true);
+
+        return fileListFilter;
+    }
+
+    /**
+     * MessageSource<File> Bean
+     * FileReadingMessageSource
+     * @return
+     */
     @Bean
 //    @InboundChannelAdapter(channel = "fromSftpChannel", poller = @Poller(cron = "0/5 * * * * *"))
     public MessageSource<File> fileReadingMessageSource(){
         FileReadingMessageSource sourceReader = new FileReadingMessageSource();
-        sourceReader.setDirectory(new File(INPUT_DIR));
-        FileSystemPersistentAcceptOnceFileListFilter fileListFilter = new FileSystemPersistentAcceptOnceFileListFilter(getMetadataStore(),"fileReadingMessageSource");
 
-        // Determine whether the metadataStore should be flushed on each update
-        fileListFilter.setFlushOnUpdate(true);
-
+        //subscribe directory
+        sourceReader.setDirectory(new File(WORKING_PATH+"/in"));
+        //setting filter
         sourceReader.setFilter(new CompositeFileListFilter<File>()
-                .addFilter(fileListFilter)
+                .addFilter(acceptOnceFileListFilter())
 //                .addFilter(new AcceptOnceFileListFilter<>())
 //                .addFilter(new LastModifiedFileListFilter())
 //                .addFilter(new IgnoreHiddenFileListFilter())
@@ -92,11 +120,11 @@ public class IntegrationConfig {
         return sourceReader;
     }
 
-//    public FileWritingMessageHandler fileWritingMessageHandler() {
-//        FileWritingMessageHandler handler = new FileWritingMessageHandler();
-//        return handler;
-//    }
-
+    /**
+     * FileToByteArrayTransformer
+     * File을 Byte[]으로 변환하여 handler로 전달하는 transformer
+     * @return
+     */
     @Transformer
     public FileToByteArrayTransformer transformer() {
         FileToByteArrayTransformer transformer = new FileToByteArrayTransformer();
@@ -104,6 +132,10 @@ public class IntegrationConfig {
         return transformer;
     }
 
+    /**
+     *
+     * @return
+     */
     @Bean
     public HttpRequestExecutingMessageHandler httpRequestExecutingMessageHandler() {
         RestTemplateBuilder restTemplate = appContext.getBean("restTemplate", RestTemplateBuilder.class);
@@ -171,26 +203,4 @@ public class IntegrationConfig {
 //                .channel(pollerChannel())
                 .get();
     }
-
-//    @Bean
-//    public Advice expressionAdvice() {
-//        ExpressionEvaluatingRequestHandlerAdvice advice = new ExpressionEvaluatingRequestHandlerAdvice();
-//        advice.setSuccessChannelName("success.input");
-//        advice.setOnSuccessExpressionString("payload + ' was successful'");
-//        advice.setFailureChannelName("failure.input");
-//        advice.setOnFailureExpressionString(
-//                "payload + ' was bad, with reason: ' + #exception.cause.message");
-//        advice.setTrapException(true);
-//        return advice;
-//    }
-//
-//    @Bean
-//    public IntegrationFlow success() {
-//        return f -> f.handle(System.out::println);
-//    }
-//
-//    @Bean
-//    public IntegrationFlow failure() {
-//        return f -> f.handle(System.out::println);
-//    }
 }
