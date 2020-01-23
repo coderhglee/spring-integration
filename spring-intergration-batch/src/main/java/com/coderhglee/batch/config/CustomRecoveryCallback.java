@@ -2,13 +2,10 @@ package com.coderhglee.batch.config;
 
 import com.coderhglee.batch.service.FileService;
 import lombok.extern.log4j.Log4j2;
-import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.support.GenericMessage;
 import org.springframework.retry.RecoveryCallback;
 import org.springframework.retry.RetryContext;
-
-import java.io.File;
 
 @Log4j2
 public class CustomRecoveryCallback implements RecoveryCallback {

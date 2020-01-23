@@ -1,17 +1,13 @@
 package com.coderhglee.batch.config;
 
-import com.coderhglee.batch.interceptor.ExecutorInterceptor;
 import com.coderhglee.batch.interceptor.PollersInterceptor;
 import org.aopalliance.aop.Advice;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.expression.Expression;
-import org.springframework.expression.ExpressionParser;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.context.annotation.Profile;
 import org.springframework.integration.annotation.Transformer;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.channel.ExecutorChannel;
@@ -21,25 +17,21 @@ import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
 import org.springframework.integration.dsl.Pollers;
 import org.springframework.integration.file.FileReadingMessageSource;
-import org.springframework.integration.file.filters.*;
+import org.springframework.integration.file.filters.CompositeFileListFilter;
+import org.springframework.integration.file.filters.FileSystemPersistentAcceptOnceFileListFilter;
+import org.springframework.integration.file.filters.SimplePatternFileListFilter;
 import org.springframework.integration.file.transformer.FileToByteArrayTransformer;
 import org.springframework.integration.handler.LoggingHandler;
-import org.springframework.integration.handler.advice.RequestHandlerRetryAdvice;
 import org.springframework.integration.http.outbound.HttpRequestExecutingMessageHandler;
 import org.springframework.integration.metadata.PropertiesPersistingMetadataStore;
-import org.springframework.integration.metadata.SimpleMetadataStore;
-import org.springframework.retry.RetryPolicy;
-import org.springframework.retry.support.RetryTemplate;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 @Configuration
 @EnableIntegration
-public class IntegrationConfig {
+@Profile(value = "file")
+public class FileFlowsConfig {
 
     @Value("${working.path}")
     private String WORKING_PATH;
@@ -49,35 +41,26 @@ public class IntegrationConfig {
     @Autowired
     private ApplicationContext appContext;
 
+    private PropertiesPersistingMetadataStore metadataStore;
+    private ExecutorChannel executorChannel;
+    private HttpRequestExecutingMessageHandler httpMessageHandler;
+    private Advice retryAdvice;
+//    RestTemplateBuilder restTemplate = appContext.getBean("restTemplate", RestTemplateBuilder.class);
+//    LoggingHandler loggingHandler = appContext.getBean("LoggingHandler", LoggingHandler.class);
+
+    @PostConstruct
+    public void init() {
+        this.metadataStore = appContext.getBean("metadataStore", PropertiesPersistingMetadataStore.class);
+        this.executorChannel = appContext.getBean("executorChannel", ExecutorChannel.class);
+        this.httpMessageHandler = appContext.getBean("httpRequestExecutingMessageHandler", HttpRequestExecutingMessageHandler.class);
+        this.retryAdvice = appContext.getBean("retryAdvice", Advice.class);
+    }
+
     @Bean
     public DirectChannel pollerChannel() {
         DirectChannel directChannel = new DirectChannel();
         directChannel.addInterceptor(new PollersInterceptor());
         return directChannel;
-    }
-
-    /**
-     * SimpleMetadataStore Bean
-     * 별도의 파일로 저장하지않고 메모리에 MessageSource 파일 내용을 저장한다.
-     * @return
-     */
-    @Bean
-    public SimpleMetadataStore simpleMetadataStore() {
-        return new SimpleMetadataStore();
-    }
-
-    /**
-     * PropertiesPersistingMetadataStore Bean
-     * MessageSource 에서 읽은 파일을 .properties 파일에 목록을 저장한다.
-     * @return
-     */
-    @Bean
-    public PropertiesPersistingMetadataStore getMetadataStore() {
-        PropertiesPersistingMetadataStore metadataStore = new PropertiesPersistingMetadataStore();
-        metadataStore.setBaseDirectory(WORKING_PATH+"/tmp");
-        metadataStore.afterPropertiesSet();
-//        Logger.info(metadataStore.getClass().getName(), " metadataStore ");
-        return metadataStore;
     }
 
     /**
@@ -91,7 +74,7 @@ public class IntegrationConfig {
      */
     @Bean
     public FileSystemPersistentAcceptOnceFileListFilter acceptOnceFileListFilter(){
-        FileSystemPersistentAcceptOnceFileListFilter fileListFilter = new FileSystemPersistentAcceptOnceFileListFilter(getMetadataStore(),"fileReadingMessageSource");
+        FileSystemPersistentAcceptOnceFileListFilter fileListFilter = new FileSystemPersistentAcceptOnceFileListFilter(this.metadataStore,"fileReadingMessageSource");
         // Determine whether the metadataStore should be flushed on each update
         fileListFilter.setFlushOnUpdate(true);
 
@@ -107,7 +90,6 @@ public class IntegrationConfig {
 //    @InboundChannelAdapter(channel = "fromSftpChannel", poller = @Poller(cron = "0/5 * * * * *"))
     public MessageSource<File> fileReadingMessageSource(){
         FileReadingMessageSource sourceReader = new FileReadingMessageSource();
-
         //subscribe directory
         sourceReader.setDirectory(new File(WORKING_PATH+"/in"));
         //setting filter
@@ -132,51 +114,9 @@ public class IntegrationConfig {
         return transformer;
     }
 
-    /**
-     *
-     * @return
-     */
-    @Bean
-    public HttpRequestExecutingMessageHandler httpRequestExecutingMessageHandler() {
-        RestTemplateBuilder restTemplate = appContext.getBean("restTemplate", RestTemplateBuilder.class);
-        Map<String, Expression> expressionMap = new HashMap<>();
-        ExpressionParser EXPRESSION_PARSER = new SpelExpressionParser();
-        expressionMap.put("foo", EXPRESSION_PARSER.parseExpression("headers.file_name"));
-        HttpRequestExecutingMessageHandler handler = new HttpRequestExecutingMessageHandler("http://127.0.0.1:8080/hello/{foo}", restTemplate.build());
-        handler.setUriVariableExpressions(expressionMap);
-        handler.setExpectReply(false);
-        return handler;
-    }
 
 
-    @Bean
-    public LoggingHandler loggingHandler() {
-        LoggingHandler loggingHandler = new LoggingHandler(LoggingHandler.Level.DEBUG);
-        loggingHandler.setLoggerName("TEST_LOGGER");
-        loggingHandler.setLogExpressionString("headers.id + ': ' + payload");
-        return loggingHandler;
-    }
 
-    @Bean
-    public Advice retryAdvice() {
-        RequestHandlerRetryAdvice retryAdvice = new RequestHandlerRetryAdvice();
-        RetryTemplate retryTemplate = new RetryTemplate();
-        RetryPolicy retryPolicy = appContext.getBean("retryPolicy", RetryPolicy.class);
-//        FixedBackOffPolicy fixedBackOffPolicy = appContext.getBean("fixedBackOffPolicy",FixedBackOffPolicy.class);
-//        retryTemplate.setBackOffPolicy(fixedBackOffPolicy);
-        retryTemplate.setRetryPolicy(retryPolicy);
-        retryAdvice.setRetryTemplate(retryTemplate);
-        retryAdvice.setRecoveryCallback(new CustomRecoveryCallback());
-        return retryAdvice;
-    }
-
-    @Bean
-    public ExecutorChannel executorChannel() {
-        ExecutorService exec = Executors.newFixedThreadPool(5);
-        ExecutorChannel executorChannel = new ExecutorChannel(exec);
-        executorChannel.addInterceptor(new ExecutorInterceptor());
-        return executorChannel;
-    }
 
     @Bean
     public IntegrationFlow pollingFlow() {
@@ -188,7 +128,7 @@ public class IntegrationConfig {
 //                .filter(new ChainFileListFilter<File>()
 //                        .addFilter(new AcceptOnceFileListFilter<>())
 //                        .addFilter(new SimplePatternFileListFilter(FILE_PATTERN)))
-                .channel(executorChannel())
+                .channel(this.executorChannel)
 //                .route(new HeaderValueRouter("STATE"),c -> c.advice(expressionAdvice()))
 //                .routeToRecipients(r -> r
 //                                .recipient(executorChannel())
@@ -199,7 +139,7 @@ public class IntegrationConfig {
                 .transform(transformer())
 //                .<File,Boolean>route(File::canExecute, c -> c.advice(expressionAdvice()))
 //                .channel(pollerChannel())
-                .handle(httpRequestExecutingMessageHandler(), e -> e.advice(retryAdvice()))
+                .handle(this.httpMessageHandler, e -> e.advice(this.retryAdvice))
 //                .channel(pollerChannel())
                 .get();
     }
