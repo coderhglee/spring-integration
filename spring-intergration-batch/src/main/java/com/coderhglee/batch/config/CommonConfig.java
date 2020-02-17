@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.integration.channel.ExecutorChannel;
+import org.springframework.integration.file.filters.FileSystemPersistentAcceptOnceFileListFilter;
 import org.springframework.integration.handler.LoggingHandler;
 import org.springframework.integration.metadata.PropertiesPersistingMetadataStore;
 import org.springframework.integration.metadata.SimpleMetadataStore;
@@ -50,13 +51,13 @@ public class CommonConfig {
         return metadataStore;
     }
 
-    @Bean
-    public ExecutorChannel executorChannel() {
-        ExecutorService exec = Executors.newFixedThreadPool(5);
-        ExecutorChannel executorChannel = new ExecutorChannel(exec);
-        executorChannel.addInterceptor(new ExecutorInterceptor());
-        return executorChannel;
-    }
+//    @Bean
+//    public ExecutorChannel executorChannel() {
+//        ExecutorService exec = Executors.newFixedThreadPool(5);
+//        ExecutorChannel executorChannel = new ExecutorChannel(exec);
+//        executorChannel.addInterceptor(new ExecutorInterceptor());
+//        return executorChannel;
+//    }
 
     @Bean
     public LoggingHandler loggingHandler() {

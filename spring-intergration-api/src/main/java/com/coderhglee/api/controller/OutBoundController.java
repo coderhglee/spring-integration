@@ -4,7 +4,6 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -46,7 +45,7 @@ public class OutBoundController {
             IOUtils.closeQuietly(inputStream);
             IOUtils.closeQuietly(outStream);
 
-            Thread.sleep(5000);
+//            Thread.sleep(1000);
         } catch (IOException ex) {
             throw ex;
         }

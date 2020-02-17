@@ -1,0 +1,14 @@
+spring:
+  profiles:
+    active: file
+logging :
+  level :
+    org.springframework: DEBUG
+#logging.level.org.TEST_LOGGER=DEBUG
+#working.path=/Users/hakgyun/repository/spring-integration
+inbound :
+  - newsis
+  - osen
+  - sports
+working :
+  path : "C:\\Users\\KLCOM000\\repository\\spring-integration"
